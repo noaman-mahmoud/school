@@ -1,12 +1,11 @@
 <?php
 
 namespace App\Console\Commands;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Console\Command;
 use App\Models\School;
 use App\Models\Student;
-use Illuminate\Console\Command;
 use App\Mail\OrderNumber;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\DB;
 
 class StudentOrderNumber extends Command
 {
@@ -34,33 +33,29 @@ class StudentOrderNumber extends Command
         parent::__construct();
     }
 
-
     /**
      * Execute the console command.
      *
      * @return mixed
      */
+
     public function handle()
     {
-        $orders = School::with('order')->get()->pluck('order.id','id')->toArray();
-
-        Student::whereIn('id',$orders)->update(['order'=> 1]);
-
-
-        $students = Student::select(['students.*','students.name as students.name'])
-            ->join('students','students.school_id','==','schools.id')
-            ->orderBy('order')->get();
-
-
         $students = Student::with('school')
-                    ->where('order','<>',1)
                     ->orderBy(School::select('id')->whereColumn('schools.id','students.school_id'))
                     ->orderBy('order')->get();
 
-        $number = 1;
         foreach ($students as $student){
-            $student->update(['order'=> $number++]);
+
+            $count   = 1;
+            $numbers = $student->where('school_id',$student->school_id)->get();
+
+            foreach ($numbers as $number){
+                $number->update(['order'=>$count]);
+                $count ++;
+            }
         }
+
 
         $message = 'finished';
         Mail::to('no3man.mahmoud@gmail.com')->send(new OrderNumber($message));

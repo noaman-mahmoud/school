@@ -2,22 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Api\FinancialAccountsResource;
-use App\Http\Requests\Api\Delegate\DelegateOrderDetailsRequest;
-use App\Http\Resources\Api\Delegate\DelegateOrdersResource;
-use App\Http\Requests\Api\Delegate\DelegateLatLng;
-use App\Models\ProductServicePrice;
-use App\Notifications\OrderNotification;
-use App\Services\ProviderService;
-use App\Models\ProviderWorkDay;
-use App\Services\OrderService;
+use App\Http\Requests\API\StoreStudentRequest;
+use App\Http\Requests\API\UpdateStudentRequest;
+use App\Http\Resources\SchoolsResource;
+use App\Http\Resources\StudentsResource;
 use App\Traits\PaginationTrait;
 use App\Traits\ResponseTrait;
-use App\Models\OrderDelegate;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
-use App\Models\Service;
-use App\Models\Order;
+use App\Models\Student;
 use Validator;
 use Auth;
 
@@ -25,151 +17,71 @@ class StudentController extends Controller {
 
     use ResponseTrait , PaginationTrait;
 
-    /**  public function delegate main orders . */
-    public function delegate_main_orders(Request $request)
+    /**  public function get All Students . */
+    public function getStudents()
     {
-        $validator = Validator::make($request->all(), [
-            'lat' => 'required',
-            'lng' => 'required',
-        ]);
+        $students = Student::with(['school'])->paginate(10);
+        $data     = StudentsResource::collection($students);
 
-        if ($validator->passes()){
+        $pagination = $this->paginationModel($students);
 
-            $ordersIds = OrderDelegate::where(['delegate_id'=>Auth::id()])
-                ->whereNull('status')->pluck('order_id')->toArray();
-
-            $orders    = Order::whereIn('id',$ordersIds)->select('lat','lng');
-
-            $distances = getDistanceHaving($orders,$request->lat,$request->lng);
-
-            $data      = DelegateOrdersResource::collection($distances);
-
-            return $this->successData(['orders' => $data]);
-        }
-
-        $error = Arr::first(Arr::flatten($validator->messages()->get('*')));
-
-        return response()->json(["key"=>"fail","msg"=>$error]);
+        return $this->successData(['pagination'=>$pagination,'students' => $data]);
     }
 
-    /**  public function user pending orders . */
-    public function delegate_pending_orders(DelegateLatLng  $request)
+    /**  public function get All schools . */
+    public function getSchools()
     {
-        $orders = Order::where('delegate_id',Auth::id())->whereIn('status',[6,8,9,10,11,12])
-            ->with(['provider'])->paginate(10);
+        $schools = Student::select('id','name')->paginate(10);
+        $data    = SchoolsResource::collection($schools);
 
-        $data = DelegateOrdersResource::collection($orders);
+        $pagination = $this->paginationModel($schools);
 
-        $pagination = $this->paginationModel($orders);
-
-        return $this->successData(['pagination'=>$pagination,'orders' => $data]);
+        return $this->successData(['pagination'=>$pagination,'schools' => $data]);
     }
 
-    /**  public function user finished order . */
-    public function delegate_finished_orders(DelegateLatLng $request)
+    /**  public function store Student . */
+    public function storeStudent(StoreStudentRequest $request)
     {
-        $orders = Order::where('delegate_id',Auth::id())->whereIn('status',[5,13])
-            ->with(['provider'])->paginate(10);
+        Student::create($request->validated());
 
-        $data   = DelegateOrdersResource::collection($orders);
-
-        $pagination = $this->paginationModel($orders);
-
-        return $this->successData(['pagination' => $pagination,'orders' => $data]);
+        return $this->successMsg('created successfully');
     }
 
-    /**  public function delegate order details . */
-    public function delegate_order_details(DelegateOrderDetailsRequest $request)
+    /**  public function update Student . */
+    public function updateStudent(UpdateStudentRequest $request)
     {
-        $order = Order::where(['id'=>$request->order_id])
-            ->with(['user','provider'])
-            ->first();
+        $student = Student::find($request->student_id);
+        $student->update($request->validated());
 
-        if (isset($request->status)){
-            if($request['status'] < $order->status){
-                return $this->response('fail',__('apis.invalid_order_status'),[]);
-            }
-        }
-
-        if (!isset($order)){
-            return $this->failMsg(trans('apis.data_incorrect'));
-        }
-        $orderDelegate = OrderDelegate::where(['delegate_id'=>Auth::id(),'order_id'=>$order->id])->first();
-        #Delegate Accepted
-        if (isset($request->status) && $request->status == 6){
-
-            $orderDelegate->update(['status'=>'accepted']);
-
-            $order->update(['delegate_id'=>Auth::id()]);
-
-            OrderDelegate::where('order_id',$order->id)->whereNull('status')->delete();
-
-            $chat  = new ChatService();
-            $room  = $chat->createRoom(auth()->user(), 0,$order->id);
-            $chat->joinRoom($room,$order->user);
-            $chat->storeMessage($room,auth()->user(),__('apis.iam_working_order'));
-
-            Notification::send($order->provider, new OrderNotification($order->refresh(),$order->provider,'DELEGATE_ACCEPTED'));
-            Notification::send($order->user, new OrderNotification($order->refresh(),$order->user,'DELEGATE_ACCEPTED'));
-
-        }
-
-        #Delegate refused
-        if (isset($request->status) && $request->status == 7){
-            $orderDelegate->update(['status'=>'refused','reason'=>$request->reason]);
-            Notification::send($order->provider, new OrderNotification($order->refresh(),$order->provider,'DELEGATE_CANCELLED'));
-
-        }
-
-        #wallet_balance
-        if (!in_array($order->pay_type,[1]) && $request->status == 12){
-            Auth::user()->increment('wallet_balance',$order->deliver_price);
-        }
-
-        if (isset($request->status)){
-            $order->update(['status'=> $request->status]);
-        }
-
-        $distance = getDistance($order->provider,$request->lat,$request->lng);
-        $data     = $this->OrderService->delegateOrderDetails($order);
-
-        $data['distance'] = numberFormat($distance->distance);
-
-        return $this->successData($data);
+        return $this->successMsg('updated successfully');
     }
 
-    /**  public function order invoice . */
-    public function delegate_order_invoice($order)
+    /**  public function delete Student . */
+    public function deleteStudent(Request $request)
     {
-        $order = Order::where(['id'=>$order])->first();
+        $student = Student::find($request->student_id);
 
-        if (!isset($order)){
-            return $this->failMsg(trans('apis.data_incorrect'));
+        if (!isset($student)){
+            return $this->failMsg("The selected school id is invalid.");
         }
 
-        $invoice = $this->OrderService->Invoice($order);
+        $student->delete();
 
-        return $this->successData($invoice);
+        return $this->successMsg('deleted successfully');
     }
 
-    /**  public function delegate financial accounts . */
-    public function delegate_financial_accounts()
+    /**  public function show Student . */
+    public function showStudent($id)
     {
-        $getOrders = Order::where('delegate_id',Auth::id())->whereNotIn('status',[1,3,7])
-            ->paginate(10);
+        $student = Student::find($id);
 
-        $sumOrders = Order::where('delegate_id',Auth::id())->whereNotIn('status',[1,3,7])
-            ->sum('total_products');
+        if (!isset($student)){
+            return $this->failMsg("The selected school id is invalid.");
+        }
 
-        $orders    = FinancialAccountsResource::collection($getOrders);
+        $data = new StudentsResource($student);
 
-        $pagination = $this->paginationModel($getOrders);
-
-        return $this->successData([
-            'pagination'   => $pagination,
-            'total_orders' => numberFormat($sumOrders),
-            'orders'       => $orders
-        ]);
+        return $this->successData(['student' => $data]);
     }
 }
 

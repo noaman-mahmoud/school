@@ -4,9 +4,11 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use App\Traits\ResponseTrait;
 
 class Handler extends ExceptionHandler
 {
+    use ResponseTrait;
     /**
      * A list of exception types with their corresponding custom log levels.
      *
@@ -46,5 +48,25 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+    }
+    public function render($request, Throwable $exception) {
+        if ($request->is('api/*')) {
+            if ($exception instanceof ModelNotFoundException) {
+                $msg = 'Model Not Found';
+            }
+
+            if ($exception instanceof NotFoundHttpException) {
+                $msg = 'Not Found Http';
+            }
+
+            if ($exception instanceof AuthenticationException) {
+                return $this->unauthenticatedReturn();
+            }
+
+            return $this->response('unauthenticated', $msg ?? $exception->getMessage(),
+            );
+        }
+
+        return parent::render($request, $exception);
     }
 }

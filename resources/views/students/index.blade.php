@@ -32,7 +32,6 @@
                                         <th class="cell">#</th>
                                         <th class="cell">name</th>
                                         <th class="cell">school</th>
-                                        <th class="cell">school id</th>
                                         <th class="cell">order</th>
                                         <th class="cell">Edit</th>
                                         <th class="cell">Delete</th>
@@ -47,9 +46,6 @@
                                             </td>
                                             <td class="cell">
                                                 <span class="truncate">{{$student->school->name}}</span>
-                                            </td>
-                                            <td class="cell">
-                                                <span class="truncate">{{$student->school_id}}</span>
                                             </td>
                                             <td class="cell">
                                                 <span class="truncate">{{$student->order}}</span>

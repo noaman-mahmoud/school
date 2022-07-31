@@ -13,8 +13,6 @@ trait PaginationTrait
             'per_page'      => $col->perPage(),
             'total_pages'   => $col->lastPage(),
             'current_page'  => $col->currentPage(),
-            'next_page_url' => (string) $col->nextPageUrl(),
-            'perv_page_url' => (string) $col->previousPageUrl(),
         ];
 
     }

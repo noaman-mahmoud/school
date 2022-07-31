@@ -19,7 +19,6 @@ class Student extends Model
     }
 
     public static function boot() {
-
         parent::boot();
 
         self::creating(function ($model) {
@@ -34,7 +33,6 @@ class Student extends Model
                 $model->order =  ($lastId + 1);
             }
         });
+
     }
-
-
 }

@@ -1,10 +1,13 @@
 <?php
 
 namespace Tests\Unit;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Tests\TestCase;
 
 class StudentOrderNumberTest extends TestCase
 {
+    use DatabaseMigrations;
+
     /**
      * A basic unit test example.
      *
@@ -13,8 +16,7 @@ class StudentOrderNumberTest extends TestCase
     public function test_console_command()
     {
         $this->artisan('student:order')
-            ->expectsOutput('send successfully')
-            ->assertExitCode(0);
+            ->expectsOutput('send successfully');
 
         $this->artisan('student:order')->assertSuccessful();
     }

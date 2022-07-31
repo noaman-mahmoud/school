@@ -6,7 +6,7 @@ use App\Http\Requests\StoreStudentRequest;
 use App\Http\Requests\UpdateStudentRequest;
 use App\Models\School;
 use App\Models\Student;
-
+use DB;
 class StudentController extends Controller
 {
     /**
