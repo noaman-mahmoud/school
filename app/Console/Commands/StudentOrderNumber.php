@@ -46,6 +46,12 @@ class StudentOrderNumber extends Command
 
         Student::whereIn('id',$orders)->update(['order'=> 1]);
 
+
+        $students = Student::select(['students.*','students.name as students.name'])
+            ->join('students','students.school_id','==','schools.id')
+            ->orderBy('order')->get();
+
+
         $students = Student::with('school')
                     ->where('order','<>',1)
                     ->orderBy(School::select('id')->whereColumn('schools.id','students.school_id'))
